@@ -1,4 +1,4 @@
-package com.gemstone.gemfire.cache.wan;
+package com.gemstone.gemfire.cache;
 
 import java.util.Properties;
 
