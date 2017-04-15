@@ -41,7 +41,7 @@ public interface ConnectionProxy {
    * The GFE version of the client.
    * @since 5.7
    */
-  public static final Version VERSION = Version.CURRENT_GFE;
+  public static final Version VERSION = Version.CURRENT;
 
   public abstract void finalizeProxy();
 

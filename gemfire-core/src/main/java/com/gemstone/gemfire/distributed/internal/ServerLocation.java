@@ -20,7 +20,6 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.io.Serializable;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import com.gemstone.gemfire.DataSerializable;
 import com.gemstone.gemfire.DataSerializer;
@@ -54,7 +53,7 @@ public class ServerLocation extends HostLocationBase<ServerLocation> implements
    * Also, that the client should not expect the security part in the server's
    * response.
    */
-  private final AtomicInteger requiresCredentials = new AtomicInteger(INITIAL_REQUIRES_CREDENTIALS);
+  private final AI requiresCredentials = CFactory.createAI(INITIAL_REQUIRES_CREDENTIALS);
 
   public static final int INITIAL_REQUIRES_CREDENTIALS = 0;
 

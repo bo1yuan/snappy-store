@@ -315,7 +315,7 @@ public class PutAllOp {
     }
     @Override  
     protected Message createResponseMessage() {
-      return new ChunkedMessage(2, Version.CURRENT_GFE);
+      return new ChunkedMessage(2, Version.CURRENT);
     }
     
     @Override
