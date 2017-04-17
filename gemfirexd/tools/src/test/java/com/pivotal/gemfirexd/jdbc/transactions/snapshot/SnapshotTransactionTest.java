@@ -1,5 +1,6 @@
 package com.pivotal.gemfirexd.jdbc.transactions.snapshot;
 
+import java.io.IOException;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -7,6 +8,7 @@ import java.sql.Statement;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.gemstone.gemfire.cache.AttributesFactory;
 import com.gemstone.gemfire.cache.IsolationLevel;
@@ -16,6 +18,8 @@ import com.gemstone.gemfire.cache.Region;
 import com.gemstone.gemfire.cache.RegionFactory;
 import com.gemstone.gemfire.cache.RegionShortcut;
 import com.gemstone.gemfire.internal.cache.*;
+import com.gemstone.gemfire.internal.cache.persistence.DiskStoreID;
+import com.gemstone.gemfire.internal.cache.versions.DiskRegionVersionVector;
 import com.gemstone.gemfire.internal.cache.versions.RegionVersionHolder;
 import com.gemstone.gemfire.internal.cache.versions.VersionSource;
 import com.gemstone.org.jgroups.oswego.concurrent.CyclicBarrier;
@@ -41,6 +45,45 @@ public class SnapshotTransactionTest  extends JdbcTestBase {
     return "fine";
   }
 
+  public void testRVVSnapshotContains() throws Exception {
+    Connection conn = getConnection();
+    PartitionAttributesFactory paf = new PartitionAttributesFactory();
+    PartitionAttributes prAttr = paf.setTotalNumBuckets(1).create();
+    AttributesFactory attr = new AttributesFactory();
+    attr.setConcurrencyChecksEnabled(true);
+    attr.setPartitionAttributes(prAttr);
+    final Region r = GemFireCacheImpl.getInstance().createRegion("t1", attr.create());
+
+    DiskStoreID ownerId = new DiskStoreID(0, 0);
+    DiskStoreID id1 = new DiskStoreID(0, 1);
+    //DiskStoreID id2 = new DiskStoreID(1, 0);
+
+    DiskRegionVersionVector rvv = new DiskRegionVersionVector(ownerId);
+
+    DiskRegionVersionVector rvv1 = new DiskRegionVersionVector(ownerId);
+
+    for (int i = 0; i <= 757; i++) {
+      rvv1.recordVersion(id1, i);
+    }
+    rvv.recordVersion(id1, 758);
+
+    rvv.recordVersions(rvv1);
+
+    System.out.println("rvv " + rvv.fullToString());
+
+    System.out.println("SKSK Contains " + rvv.contains(id1, 758));
+
+    rvv.recordVersion(id1, 760);
+
+    rvv.recordVersion(id1, 762);
+
+    rvv.recordVersion(id1, 758);
+
+    System.out.println("rvv " + rvv.fullToString());
+
+    System.out.println("SKSK Contains " + rvv.contains(id1, 758));
+
+  }
 
   public void testSnapshotInsertTableAPI() throws Exception {
     Connection conn = getConnection();
@@ -894,11 +937,11 @@ public class SnapshotTransactionTest  extends JdbcTestBase {
 
   }
 
-  public void testSnapshotAgainstMultipleTableInsert() throws Exception {
+  public void _testSnapshotAgainstMultipleTableInsert() throws Exception {
 
   }
 
-  public void testSnapshotAgainstMultipleTableDelete() throws Exception {
+  public void _testSnapshotAgainstMultipleTableDelete() throws Exception {
 
   }
 

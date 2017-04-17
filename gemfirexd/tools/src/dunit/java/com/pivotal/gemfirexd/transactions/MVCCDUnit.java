@@ -254,7 +254,7 @@ public class MVCCDUnit extends DistributedSQLTestBase {
 
 
 
-  public void SURtestMixedOperations() throws Exception {
+  public void testMixedOperations() throws Exception {
     startVMs(1, 2);
     Properties props = new Properties();
     final Connection conn = TestUtil.getConnection(props);
@@ -384,7 +384,7 @@ public class MVCCDUnit extends DistributedSQLTestBase {
 
   }
 
-  public void SURtestMixedOperationsGII() throws Exception {
+  public void testMixedOperationsGII() throws Exception {
     startVMs(1, 2);
     Properties props = new Properties();
     final Connection conn = TestUtil.getConnection(props);
@@ -516,7 +516,7 @@ public class MVCCDUnit extends DistributedSQLTestBase {
     server3.invoke(validateResults(15,regionName));
   }
 
-  public void SURtestMixedOperationsServerRestart() throws Exception {
+  public void testMixedOperationsServerRestart() throws Exception {
     startVMs(1, 2);
     Properties props = new Properties();
     final Connection conn = TestUtil.getConnection(props);

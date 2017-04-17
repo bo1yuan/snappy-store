@@ -97,7 +97,30 @@ public class RegionVersionVectorJUnitTest extends TestCase {
     assertTrue(rvv.sameAs(snapShotRvv));
   }
 
+  public void testRVVSnapshotContains() throws IOException, ClassNotFoundException {
+    DiskStoreID ownerId = new DiskStoreID(0, 0);
+    DiskStoreID id1 = new DiskStoreID(0, 1);
+    DiskStoreID id2 = new DiskStoreID(1, 0);
 
+    DiskRegionVersionVector rvv = new DiskRegionVersionVector(ownerId);
+
+    for(int i=0; i< 57; i++) {
+      rvv.recordVersion(id1, i);
+    }
+    rvv.recordVersion(id1, 60);
+    rvv.recordVersion(id1, 58);
+
+    ConcurrentHashMap<DiskStoreID, RegionVersionHolder<DiskStoreID>> vector = rvv.getCopyOfSnapShotOfMemberVersion();
+
+    assertTrue(vector.get(id1).contains(2));
+    assertTrue(vector.get(id1).contains(1));
+    assertTrue(vector.get(id1).contains(7));
+    assertTrue(vector.get(id1).contains(9));
+    assertTrue(vector.get(id1).contains(20));
+    assertTrue(vector.get(id1).contains(11));
+    assertTrue(vector.get(id1).contains(12));
+    assertTrue(vector.get(id1).contains(3));
+  }
 
   /**
    * Test that we can copy the member to version map correctly.

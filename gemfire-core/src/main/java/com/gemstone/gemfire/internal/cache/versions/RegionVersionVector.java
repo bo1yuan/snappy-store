@@ -68,7 +68,7 @@ import com.gemstone.gemfire.internal.util.concurrent.CopyOnWriteHashMap;
  */
 public abstract class RegionVersionVector<T extends VersionSource<?>> implements DataSerializableFixedID, MembershipListener {
   
-  public static boolean DEBUG = Boolean.getBoolean("gemfire.VersionVector.VERBOSE");
+  public static boolean DEBUG = true;//Boolean.getBoolean("gemfire.VersionVector.VERBOSE");
   
   
   
@@ -746,27 +746,31 @@ public abstract class RegionVersionVector<T extends VersionSource<?>> implements
       // Here we need to record the version directly if the event is being applied from GIIed txState.
       // This breaks the atomicity?
       TXStateInterface tx = event.getTXState();
-      boolean committed = false;
-      if (tx instanceof TXState) {
-        committed = ((TXState)tx).isCommitted();
-      }
 
-      if (tx != null && !committed) {
-        tx.recordVersionForSnapshot(member, version, event.getRegion());
-        if (logger.fineEnabled()) {
-          logger.fine("/Recording version:" +
-              "/ " + version + " for member " + member + " in the snapshot tx " +
-              " region " + event.getRegion() + " for tx " + tx);
+      if (tx != null) {
+        boolean committed = false;
+        if (tx instanceof TXState) {
+          committed = ((TXState)tx).isCommitted();
         }
-        return;
-      }
-      if (logger.fineEnabled()) {
-        logger.fine("Directly recording version: " + version + " for member " + member + " in the snapshot tx " +
-            " region " + event.getRegion() + " for tx " + tx +" as it is committed.");
+        if (!committed) {
+          if (logger.fineEnabled()) {
+            logger.fine("Directly recording version: " + version + " for member " + member + " in the snapshot tx " +
+                " region " + event.getRegion() + " for tx " + tx + " as it is committed.");
+          }
+        } else {
+          tx.recordVersionForSnapshot(member, version, event.getRegion());
+          if (logger.fineEnabled()) {
+            logger.fine("Recording version:" +
+                version + " for member " + member + " in the snapshot tx " +
+                " region " + event.getRegion() + " for tx:" + tx);
+          }
+          return;
+        }
       }
     }
 
     RegionVersionHolder<T> holder;
+    Map<T, RegionVersionHolder<T>> forPrinting;
     //Find the version holder object
     synchronized (memberToVersionSnapshot) {
       holder = memberToVersionSnapshot.get(mbr);
@@ -779,15 +783,18 @@ public abstract class RegionVersionVector<T extends VersionSource<?>> implements
 
       holder.recordVersion(version, logger);
       memberToVersionSnapshot.put(holder.id, holder);
+      forPrinting = memberToVersionSnapshot;
     }
 
-    if (logger.fineEnabled()) {
+    if (logger!= null && logger.fineEnabled()) {
       String regionpath = "";
       if (event != null && event.getRegion() != null) {
         regionpath = event.getRegion().getFullPath();
       }
       logger.fine("Recorded version: " + version + " for member " + member +
-          " in the snapshot region : " + regionpath );
+          " in the snapshot region : " + regionpath  + " the snapshot is " + forPrinting +
+          " it contains version after recording "
+          + forPrinting.get(member).contains(version));
     }
   }
 
@@ -810,8 +817,6 @@ public abstract class RegionVersionVector<T extends VersionSource<?>> implements
     if (this.recordingDisabled || clientVector) {
       return;
     }
-
-    recordVersionForSnapshot(member, version, event);
 
     LogWriterI18n logger = getLoggerI18n();
     RegionVersionHolder<T> holder;
@@ -846,11 +851,14 @@ public abstract class RegionVersionVector<T extends VersionSource<?>> implements
       }
     }
     
+    holder.recordVersion(version, logger);
     //Update the version holder
     if (DEBUG && logger != null) {
-      logger.info(LocalizedStrings.DEBUG, "recording rv" + version + " for " + mbr);
+      logger.info(LocalizedStrings.DEBUG, "recording rv" + version + " for " + mbr + " rvv " + this.memberToVersion + " contains " +
+          this.memberToVersion.get(member).contains(version));
     }
-    holder.recordVersion(version, logger);
+    // record Version in snapshot too.
+    recordVersionForSnapshot(member, version, event);
   }
   
   
@@ -1744,20 +1752,30 @@ public abstract class RegionVersionVector<T extends VersionSource<?>> implements
 
   //TODO: Suranjan Could there be a case where we are reinitializing and localVersion is getting incremented
   public void reInitializeSnapshotRvv() {
-    LogWriterI18n logger = getLoggerI18n();
-    if (DEBUG && logger != null) {
-      logger.info(LocalizedStrings.DEBUG, "reInitializing the snapshot rvv, current: " +
-          this.memberToVersionSnapshot + " with : " + memberToVersion);
+    synchronized (this.memberToVersionSnapshot) {
+      LogWriterI18n logger = getLoggerI18n();
+      if (DEBUG && logger != null) {
+        logger.info(LocalizedStrings.DEBUG, "reInitializing the snapshot rvv, current: " +
+            this.memberToVersionSnapshot + " with : " + memberToVersion + " localVersion " + getCurrentVersion() +
+            " localException " + this.localExceptions );
+      }
+      for (Map.Entry<T, RegionVersionHolder<T>> entry : this.memberToVersion.entrySet()) {
+        RegionVersionHolder holder = entry.getValue().clone();
+        holder.makeReadyForRecording();
+        holder.id = entry.getValue().id;
+        this.memberToVersionSnapshot.put(entry.getKey(), holder);
+      }
+      // update the snapshot with local version too
+      RegionVersionHolder holder = localExceptions.clone();
+      holder.makeReadyForRecording();
+      holder.id = myId;
+      holder.version = getCurrentVersion();
+      this.memberToVersionSnapshot.put(myId, holder);
+
+      if (DEBUG && logger != null) {
+        logger.info(LocalizedStrings.DEBUG, "after reInitializing the snapshot : " + this.memberToVersionSnapshot);
+      }
     }
-    for (Map.Entry<T,RegionVersionHolder<T>> entry: this.memberToVersion.entrySet()) {
-      RegionVersionHolder holder = entry.getValue().clone();
-      this.memberToVersionSnapshot.put(entry.getKey(), holder);
-    }
-    // update the snapshot with local version too
-    RegionVersionHolder holder = localExceptions.clone();
-    holder.id = myId;
-    holder.version = getCurrentVersion();
-    this.memberToVersionSnapshot.put(myId, holder);
   }
 
 

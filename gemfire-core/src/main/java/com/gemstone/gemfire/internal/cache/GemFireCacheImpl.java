@@ -599,26 +599,42 @@ public class GemFireCacheImpl implements InternalCache, ClientCache, HasCachePer
 
     Map<Object, BlockingQueue<RegionEntry>> snapshot = this.oldEntryMap.get(regionPath);
     if (snapshot != null) {
-      BlockingQueue<RegionEntry> oldEntryqueue = snapshot.get(oldRe.getKeyCopy());
-      if (oldEntryqueue == null) {
-        oldEntryqueue = new LinkedBlockingDeque<RegionEntry>();
-        oldEntryqueue.add(oldRe);
-        snapshot.put(oldRe.getKeyCopy(), oldEntryqueue);
-      } else {
-        oldEntryqueue.add(oldRe);
-      }
+      enqueueOldEntry(oldRe, snapshot);
     } else {
-      BlockingQueue<RegionEntry> oldEntryqueue= new LinkedBlockingDeque<RegionEntry>();
-      snapshot = new ConcurrentHashMap<Object, BlockingQueue<RegionEntry>>();
-      oldEntryqueue.add(oldRe);
-      snapshot.put(oldRe.getKeyCopy(), oldEntryqueue);
-      this.oldEntryMap.put(regionPath, snapshot);
+      synchronized (this.oldEntryMap) {
+        snapshot = this.oldEntryMap.get(regionPath);
+        if (snapshot == null) {
+          BlockingQueue<RegionEntry> oldEntryqueue = new LinkedBlockingDeque<RegionEntry>();
+          snapshot = new ConcurrentHashMap<Object, BlockingQueue<RegionEntry>>();
+          oldEntryqueue.add(oldRe);
+          snapshot.put(oldRe.getKeyCopy(), oldEntryqueue);
+          this.oldEntryMap.put(regionPath, snapshot);
+        } else {
+          enqueueOldEntry(oldRe, snapshot);
+        }
+      }
     }
 
     for (TXStateProxy txProxy : getTxManager().getHostedTransactionsInProgress()) {
       if (txProxy.getLocalTXState() != null) {
         txProxy.getLocalTXState().addRegionEntryReference(oldRe);
       }
+    }
+    if (getLoggerI18n().fineEnabled()) {
+      getLoggerI18n().info(LocalizedStrings.DEBUG, "For key  " + oldRe.getKeyCopy() + " " +
+          "the entries are " + snapshot.get(oldRe.getKeyCopy()));
+    }
+  }
+
+  // for one entry it will always be called in a lock so assuming no sync
+  private void enqueueOldEntry(RegionEntry oldRe, Map<Object, BlockingQueue<RegionEntry>> snapshot) {
+    BlockingQueue<RegionEntry> oldEntryqueue = snapshot.get(oldRe.getKeyCopy());
+    if (oldEntryqueue == null) {
+      oldEntryqueue = new LinkedBlockingDeque<RegionEntry>();
+      oldEntryqueue.add(oldRe);
+      snapshot.put(oldRe.getKeyCopy(), oldEntryqueue);
+    } else {
+      oldEntryqueue.add(oldRe);
     }
   }
 
@@ -653,7 +669,7 @@ public class GemFireCacheImpl implements InternalCache, ClientCache, HasCachePer
         getLoggerI18n().info(LocalizedStrings.DEBUG, "For region  " + region + " the snapshot doesn't have any snapshot yet but there " +
             "are entries present in the region" +
             " the RVV " + ((LocalRegion)region).getVersionVector().fullToString() + " and snapshot RVV " +
-            ((LocalRegion)region).getVersionVector().getSnapShotOfMemberVersion() + " the entries are " + entries + "against the key " + entryKey +
+            ((LocalRegion)region).getVersionVector().getSnapShotOfMemberVersion() + " the entries are " + entries + " against the key " + entryKey +
         " the entry in region is " + re + " with version " + re.getVersionStamp().asVersionTag());
         }
         return null;
@@ -683,6 +699,66 @@ public class GemFireCacheImpl implements InternalCache, ClientCache, HasCachePer
             " the oldEntries are " + oldEntries + " returning : " + max);
       }
       return max;
+    }
+  }
+
+  public Map getOldEntriesForRegion(String regionName) {
+    return oldEntryMap.get(regionName);
+  }
+
+  class OldEntriesCleanerThread implements Runnable {
+    // Keep each entry alive for atleast 5 mins.
+    long expiryTime = 5 * 60 * 1000;
+
+    public void run() {
+
+      try {
+        if (!oldEntryMap.isEmpty()) {
+          for (Map<Object, BlockingQueue<RegionEntry>> regionEntryMap : oldEntryMap.values()) {
+            for (BlockingQueue<RegionEntry> oldEntriesQueue : regionEntryMap.values()) {
+              for (RegionEntry re : oldEntriesQueue) {
+                boolean entryFoundInTxState = false;
+                for (TXStateProxy txProxy : getTxManager().getHostedTransactionsInProgress()) {
+                  TXState txState = txProxy.getLocalTXState();
+                  if (txState != null && txState.containsRegionEntryReference(re) && !txState
+                      .isCommitted()) {
+                    entryFoundInTxState = true;
+                    break;
+                  }
+                }
+                long now = System.currentTimeMillis();
+                if (!entryFoundInTxState && (((NonLocalRegionEntry)re).getCreationTime() + expiryTime) < now) {
+                  if (getLoggerI18n().fineEnabled()) {
+                    getLoggerI18n().info(LocalizedStrings.DEBUG,
+                        "OldEntriesCleanerThread : Removing the entry " + re + " entry creation time : " +
+                            ((NonLocalRegionEntry)re).getCreationTime() + " now " + now);
+                  }
+                  oldEntriesQueue.remove(re);
+                }
+              }
+            }
+          }
+        }
+
+        for (Map<Object, BlockingQueue<RegionEntry>> regionEntryMap : oldEntryMap.values()) {
+          for (Entry<Object, BlockingQueue<RegionEntry>> entry : regionEntryMap.entrySet()) {
+            if (entry.getValue().size() == 0) {
+              regionEntryMap.remove(entry.getKey());
+              if (getLoggerI18n().fineEnabled()) {
+                getLoggerI18n().info(LocalizedStrings.DEBUG,
+                    "OldEntriesCleanerThread : Removing the map against the key " + entry.getKey());
+              }
+            }
+          }
+        }
+      }
+      catch (Exception e) {
+        if (getLoggerI18n().warningEnabled()) {
+          getLoggerI18n().info(LocalizedStrings.DEBUG,
+              "OldEntriesCleanerThread : Error occured while cleaning the oldentries map.Actual " +
+                  "Exception:", e);
+        }
+      }
     }
   }
 
@@ -6199,55 +6275,4 @@ public class GemFireCacheImpl implements InternalCache, ClientCache, HasCachePer
     }
     return false;
   }
-
-  public Map getOldEntriesForRegion(String regionName) {
-    return oldEntryMap.get(regionName);
-  }
-
-  class OldEntriesCleanerThread implements Runnable {
-    // Keep each entry alive for atleast 5 mins.
-    long expiryTime = 5 * 60 * 1000;
-
-    public void run() {
-      long now = System.currentTimeMillis();
-      try {
-        if (!oldEntryMap.isEmpty()) {
-          for (Map<Object, BlockingQueue<RegionEntry>> regionEntryMap : oldEntryMap.values()) {
-            for (BlockingQueue<RegionEntry> oldEntriesQueue : regionEntryMap.values()) {
-              for (RegionEntry re : oldEntriesQueue) {
-                boolean entryFoundInTxState = false;
-                for (TXStateProxy txProxy : getTxManager().getHostedTransactionsInProgress()) {
-                  TXState txState = txProxy.getLocalTXState();
-                  if (txState != null && txState.containsRegionEntryReference(re) && !txState
-                      .isCommitted()) {
-                    entryFoundInTxState = true;
-                    break;
-                  }
-                }
-                if (!entryFoundInTxState && (((NonLocalRegionEntry)re).getCreationTime() + expiryTime) > now) {
-                  oldEntriesQueue.remove(re);
-                }
-              }
-            }
-          }
-        }
-
-        for (Map<Object, BlockingQueue<RegionEntry>> regionEntryMap : oldEntryMap.values()) {
-          for (Entry<Object, BlockingQueue<RegionEntry>> entry : regionEntryMap.entrySet()) {
-            if (entry.getValue().size() == 0) {
-              regionEntryMap.remove(entry.getKey());
-            }
-          }
-        }
-      }
-      catch (Exception e) {
-        if (getLoggerI18n().fineEnabled()) {
-          getLoggerI18n().fine(
-              "OldEntriesCleanerThread : Error ocured while cleaning the oldentries map.Actual " +
-                  "Exception:", e);
-        }
-      }
-    }
-  }
-
 }

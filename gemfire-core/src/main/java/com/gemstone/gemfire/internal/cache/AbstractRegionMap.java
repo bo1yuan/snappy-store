@@ -1087,6 +1087,7 @@ abstract class AbstractRegionMap implements RegionMap {
     LogWriterI18n logger = owner.getLogWriterI18n();
     
     if (newValue == Token.TOMBSTONE && !owner.getConcurrencyChecksEnabled()) {
+
       return false;
     }
 
@@ -1241,7 +1242,7 @@ abstract class AbstractRegionMap implements RegionMap {
                         log.info(LocalizedStrings.DEBUG, "initialImagePut: received base value for "
                             + "list of deltas; event: " + event);
                       }
-                     
+                     //TODO: Need to add oldEntry for each of the deltas that has been stored?
                       ListOfDeltas lod = ((ListOfDeltas)oldValue);
                       lod.sortAccordingToVersionNum(entryVersion != null
                           && owner.concurrencyChecksEnabled, key);
