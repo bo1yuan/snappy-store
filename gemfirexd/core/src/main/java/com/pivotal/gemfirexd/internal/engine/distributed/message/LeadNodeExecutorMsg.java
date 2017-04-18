@@ -51,6 +51,8 @@ import com.pivotal.gemfirexd.internal.engine.jdbc.GemFireXDRuntimeException;
 import com.pivotal.gemfirexd.internal.iapi.error.StandardException;
 import com.pivotal.gemfirexd.internal.iapi.sql.ParameterValueSet;
 import com.pivotal.gemfirexd.internal.iapi.types.DataTypeDescriptor;
+import com.pivotal.gemfirexd.internal.iapi.types.DataValueDescriptor;
+import com.pivotal.gemfirexd.internal.iapi.types.SQLDecimal;
 import com.pivotal.gemfirexd.internal.iapi.types.TypeId;
 import com.pivotal.gemfirexd.internal.impl.sql.GenericParameterValueSet;
 import com.pivotal.gemfirexd.internal.shared.common.reference.SQLState;
@@ -290,9 +292,15 @@ public final class LeadNodeExecutorMsg extends MemberExecutorMessage<Object> {
           this.pvsTypes = new int[paramCount * 3 + 1];
           this.pvsTypes[0] = paramCount;
           for (int i = 0; i < paramCount; i ++) {
-            this.pvsTypes[i * 3 + 1] = this.pvs.getParameter(i).getTypeFormatId();
-            this.pvsTypes[i * 3 + 2] = -1;
-            this.pvsTypes[i * 3 + 3] = -1;
+            DataValueDescriptor dvd = this.pvs.getParameter(i);
+            this.pvsTypes[i * 3 + 1] = dvd.getTypeFormatId();
+            if (dvd instanceof SQLDecimal) {
+              this.pvsTypes[i * 3 + 2] = ((SQLDecimal)dvd).getDecimalValuePrecision();
+              this.pvsTypes[i * 3 + 3] = ((SQLDecimal)dvd).getDecimalValueScale();
+            } else {
+              this.pvsTypes[i * 3 + 2] = -1;
+              this.pvsTypes[i * 3 + 3] = -1;
+            }
           }
         }
         DataSerializer.writeIntArray(this.pvsTypes, out);
