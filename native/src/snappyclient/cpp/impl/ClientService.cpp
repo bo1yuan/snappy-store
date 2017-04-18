@@ -603,11 +603,13 @@ protocol::TProtocol* ClientService::createProtocol(
     sslSocketFactory.authenticate(false);
     boost::shared_ptr<TSocket> sslSocket = sslSocketFactory.createSocket(
         hostAddr.hostName, hostAddr.port);
+    sslSocket->setKeepAlive(false);
     returnTransport.reset(
         new BufferedSocketTransport(sslSocket, rsz, wsz, false));
   } else {
     boost::shared_ptr<TSocket> socket(
         new TSocket(hostAddr.hostName, hostAddr.port));
+    socket->setKeepAlive(false);
     returnTransport.reset(
         new BufferedSocketTransport(socket, rsz, wsz, false));
   }
