@@ -15,12 +15,16 @@ import com.pivotal.gemfirexd.internal.engine.Misc;
 import com.pivotal.gemfirexd.internal.engine.jdbc.GemFireXDRuntimeException;
 import com.pivotal.gemfirexd.internal.iapi.sql.ResultColumnDescriptor;
 import com.pivotal.gemfirexd.internal.impl.jdbc.EmbedResultSetMetaData;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A virtual table that shows the hive external tables and their columns.
  */
 public class HiveTablesVTI extends GfxdVTITemplate
     implements GfxdVTITemplateNoAllNodesRoute {
+
+  private final Logger logger = LoggerFactory.getLogger(getClass().getName());
 
   private Iterator<ExternalTableMetaData> tableMetas;
   private ExternalTableMetaData currentTableMeta;
@@ -37,7 +41,13 @@ public class HiveTablesVTI extends GfxdVTITemplate
     if (this.tableMetas == null) {
       ExternalCatalog hiveCatalog = Misc.getMemStore().getExternalCatalog();
       if (hiveCatalog != null) {
-        this.tableMetas = hiveCatalog.getNonStoreTables(true).iterator();
+        try {
+          this.tableMetas = hiveCatalog.getNonStoreTables(true).iterator();
+        } catch (Exception e) {
+          // log and move on
+          logger.warn("ERROR in retrieving Hive tables: " + e.toString());
+          this.tableMetas = Collections.emptyIterator();
+        }
       } else {
         this.tableMetas = Collections.emptyIterator();
       }
