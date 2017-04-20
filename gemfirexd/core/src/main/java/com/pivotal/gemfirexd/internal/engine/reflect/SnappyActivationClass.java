@@ -31,15 +31,13 @@ public class SnappyActivationClass implements GeneratedClass {
   private final boolean returnRows;
   private final int classLoaderVersion;
   boolean isPrepStmt;
-  boolean parseError;
 
   public SnappyActivationClass(LanguageConnectionContext lcc,
-      boolean returnRows, boolean isPrepStmt, boolean parseError) {
+      boolean returnRows, boolean isPrepStmt) {
     this.returnRows = returnRows;
     this.classLoaderVersion = lcc.getLanguageConnectionFactory()
         .getClassFactory().getClassLoaderVersion();
     this.isPrepStmt = isPrepStmt;
-    this.parseError = parseError;
   }
 
   public int getClassLoaderVersion() {
@@ -58,7 +56,7 @@ public class SnappyActivationClass implements GeneratedClass {
                                   final boolean addToLCC, final ExecPreparedStatement eps)
     throws StandardException {
     SnappyActivation sa = new SnappyActivation(lcc, eps, this.returnRows, this.isPrepStmt);
-    if (isPrepStmt && parseError) {
+    if (isPrepStmt) {
       sa.initialize_pvs();
     }
     return sa;

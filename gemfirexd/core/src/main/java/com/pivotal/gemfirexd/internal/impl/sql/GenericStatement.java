@@ -222,10 +222,10 @@ public class GenericStatement
 	// GemStone changes BEGIN
 	private GenericPreparedStatement getPreparedStatementForSnappy(
 			boolean commitNestedTransaction, StatementContext statementContext,
-			LanguageConnectionContext lcc, boolean isDDL, boolean checkCancellation,
-			boolean parseError) throws StandardException {
+			LanguageConnectionContext lcc, boolean isDDL,
+			boolean checkCancellation) throws StandardException {
       GenericPreparedStatement gps = preparedStmt;
-      GeneratedClass ac = new SnappyActivationClass(lcc, !isDDL, isPreparedStatement(), parseError);
+      GeneratedClass ac = new SnappyActivationClass(lcc, !isDDL, isPreparedStatement() && !isDDL);
       gps.setActivationClass(ac);
       gps.incrementVersionCounter();
       gps.makeValid();
@@ -595,7 +595,7 @@ public class GenericStatement
 						if (prepareIsolationLevel == Connection.TRANSACTION_NONE) {
 							cc.markAsDDLForSnappyUse(true);
 							return getPreparedStatementForSnappy(false, statementContext, lcc,
-                  cc.isMarkedAsDDLForSnappyUse(), checkCancellation, false);
+                  cc.isMarkedAsDDLForSnappyUse(), checkCancellation);
 						}
 					}
 					qt = p.parseStatement(getQueryStringForParse(lcc), paramDefaults);
@@ -607,7 +607,7 @@ public class GenericStatement
               cc.markAsDDLForSnappyUse(true);
             }
             return getPreparedStatementForSnappy(false, statementContext, lcc,
-                cc.isMarkedAsDDLForSnappyUse(), checkCancellation, true);
+                cc.isMarkedAsDDLForSnappyUse(), checkCancellation);
           }
           throw ex;
 				}
@@ -620,7 +620,7 @@ public class GenericStatement
                                      observer.testExecutionEngineDecision(qinfo, ExecutionEngine.SPARK, this.statementText);
                                    }
 				    return getPreparedStatementForSnappy(false, statementContext, lcc, true,
-                checkCancellation, false);
+                checkCancellation);
 				}
 				//GemStone changes END
 				parseTime = getCurrentTimeMillis(lcc);
@@ -690,7 +690,7 @@ public class GenericStatement
                                                          observer.testExecutionEngineDecision(qinfo, ExecutionEngine.SPARK, this.statementText);
                                                        }
 							return getPreparedStatementForSnappy(true, statementContext, lcc, false,
-                  checkCancellation, false);
+                  checkCancellation);
 						}
 						throw ex;
 					}
@@ -759,7 +759,7 @@ public class GenericStatement
                                                          observer.testExecutionEngineDecision(qinfo, ExecutionEngine.SPARK, this.statementText);
                                                        }
 							return getPreparedStatementForSnappy(true, statementContext, lcc, false,
-                  checkCancellation, false);
+                  checkCancellation);
 						}
 						throw ex;
 					}
@@ -803,7 +803,7 @@ public class GenericStatement
                                                   observer.testExecutionEngineDecision(qinfo, ExecutionEngine.SPARK, this.statementText);
                                                 }
                                                 return getPreparedStatementForSnappy(true,
-                                                    statementContext, lcc, false, checkCancellation, false);
+                                                    statementContext, lcc, false, checkCancellation);
 
                                               } else if (qinfo.isUpdate() || qinfo.isDelete()) {
                                                 // Temporarily using the below sqlstate as this unsupported operation
@@ -918,7 +918,7 @@ public class GenericStatement
               observer.testExecutionEngineDecision(qinfo, ExecutionEngine.SPARK, this.statementText);
             }
             return getPreparedStatementForSnappy(true, statementContext, lcc, false,
-                checkCancellation, false);
+                checkCancellation);
           }
 // GemStone changes END
 					lcc.commitNestedTransaction();
