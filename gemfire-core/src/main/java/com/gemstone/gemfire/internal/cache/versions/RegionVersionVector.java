@@ -752,17 +752,17 @@ public abstract class RegionVersionVector<T extends VersionSource<?>> implements
         if (tx instanceof TXState) {
           committed = ((TXState)tx).isCommitted();
         }
-        if (!committed) {
+        if (committed) {
           if (logger.fineEnabled()) {
-            logger.fine("Directly recording version: " + version + " for member " + member + " in the snapshot tx " +
-                " region " + event.getRegion() + " for tx " + tx + " as it is committed.");
+            logger.fine("Directly recording version: " + version + " for member " + member + "in the snapshot tx " +
+                    " region " + event.getRegion() + " for tx " + tx + " as it is committed.");
           }
         } else {
           tx.recordVersionForSnapshot(member, version, event.getRegion());
           if (logger.fineEnabled()) {
             logger.fine("Recording version:" +
-                version + " for member " + member + " in the snapshot tx " +
-                " region " + event.getRegion() + " for tx:" + tx);
+                    version + " for member " + member + " in the snapshot tx " +
+                    " region " + event.getRegion() + " for tx:" + tx);
           }
           return;
         }
@@ -791,10 +791,10 @@ public abstract class RegionVersionVector<T extends VersionSource<?>> implements
       if (event != null && event.getRegion() != null) {
         regionpath = event.getRegion().getFullPath();
       }
-      logger.fine("Recorded version: " + version + " for member " + member +
-          " in the snapshot region : " + regionpath  + " the snapshot is " + forPrinting +
-          " it contains version after recording "
-          + forPrinting.get(member).contains(version));
+      logger.fine("Recorded version: " + version + " for member " + member + " in the snapshot region : " +
+              regionpath + " the snapshot is " + forPrinting +
+              " it contains version after recording "
+              + forPrinting.get(member).contains(version));
     }
   }
 
