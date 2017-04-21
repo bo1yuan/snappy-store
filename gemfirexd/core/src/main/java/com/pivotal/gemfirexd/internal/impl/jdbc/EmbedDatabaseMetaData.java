@@ -1819,12 +1819,12 @@ public class EmbedDatabaseMetaData extends ConnectionChild
 			//GemStone changes BEGIN
 			else if ("COLUMN TABLE".equals(types[i]) ||
 			    "COLUMN_TABLE".equals(types[i])) // In case we treat it like SYSTEM_TABLE
-			    typeParams[4] = "C";
+			    typeParams[4] = "COLUMN";
 			else if ("EXTERNAL TABLE".equals(types[i]) ||
 			    "STREAM TABLE".equals(types[i]) ||
 			    "SAMPLE TABLE".equals(types[i]) ||
 			    "TOPK TABLE".equals(types[i])) {
-			    typeParams[5] = "E";
+			    typeParams[5] = types[i].replace(" TABLE", "");
 			}
 			//GemStone changes END
 			// If user puts in other types we simply ignore.
