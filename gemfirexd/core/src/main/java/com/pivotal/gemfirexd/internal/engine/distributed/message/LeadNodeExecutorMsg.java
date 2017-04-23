@@ -129,12 +129,11 @@ public final class LeadNodeExecutorMsg extends MemberExecutorMessage<Object> {
 
   @Override
   protected void execute() throws Exception {
-    // TODO - remove this
-    if (GemFireXDUtils.TraceQuery || true) {
+    if (GemFireXDUtils.TraceQuery) {
       StringBuilder str = new StringBuilder();
       appendFields(str);
       SanityManager.DEBUG_PRINT(GfxdConstants.TRACE_QUERYDISTRIB,
-              "LeadNodeExecutorMsg.execute:  = " + str.toString());
+              "LeadNodeExecutorMsg.execute: Got sql = " + str.toString());
     }
     try {
       InternalDistributedMember m = this.getSenderForReply();
