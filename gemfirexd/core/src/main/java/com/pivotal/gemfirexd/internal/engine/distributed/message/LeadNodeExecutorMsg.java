@@ -129,13 +129,16 @@ public final class LeadNodeExecutorMsg extends MemberExecutorMessage<Object> {
 
   @Override
   protected void execute() throws Exception {
-    if (GemFireXDUtils.TraceQuery) {
-      StringBuilder str = new StringBuilder();
-      appendFields(str);
-      SanityManager.DEBUG_PRINT(GfxdConstants.TRACE_QUERYDISTRIB,
-              "LeadNodeExecutorMsg.execute: Got sql = " + str.toString());
-    }
     try {
+      if (isPreparedStatement() && !isPreparedPhase()) {
+        getParams();
+      }
+      if (GemFireXDUtils.TraceQuery) {
+        StringBuilder str = new StringBuilder();
+        appendFields(str);
+        SanityManager.DEBUG_PRINT(GfxdConstants.TRACE_QUERYDISTRIB,
+            "LeadNodeExecutorMsg.execute: Got sql = " + str.toString());
+      }
       InternalDistributedMember m = this.getSenderForReply();
       final Version v = m.getVersionObject();
       exec = CallbackFactoryProvider.getClusterCallbacks().getSQLExecute(
@@ -325,12 +328,6 @@ public final class LeadNodeExecutorMsg extends MemberExecutorMessage<Object> {
   public void appendFields(final StringBuilder sb) {
     sb.append("sql: " + sql);
     sb.append(" ;schema: " + schema);
-    // call getParams first
-    try {
-      getParams();
-    } catch (Throwable t) {
-      // do nothing
-    }
     sb.append(" ;isPreparedStatement=").append(this.isPreparedStatement());
     sb.append(" ;isPreparedPhase=").append(this.isPreparedPhase());
     sb.append(" ;pvs=").append(this.pvs);
