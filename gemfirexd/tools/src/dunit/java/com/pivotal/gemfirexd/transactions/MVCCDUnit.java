@@ -22,6 +22,10 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Iterator;
 import java.util.Properties;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import com.gemstone.gemfire.cache.IsolationLevel;
 import com.gemstone.gemfire.cache.Region;
@@ -1026,7 +1030,7 @@ public class MVCCDUnit extends DistributedSQLTestBase {
     //VM server2 = this.serverVMs.get(1);
 
 
-    final TXId txid = (TXId)server1.invoke(new SerializableCallable() {
+    final boolean success = (Boolean)server1.invoke(new SerializableCallable() {
 
       @Override
       public Object call() {
@@ -1040,11 +1044,11 @@ public class MVCCDUnit extends DistributedSQLTestBase {
           }
 
 
-
-          Thread insertThread = new Thread(new Runnable() {
+          Callable<Boolean> insertTask = new Callable<Boolean>() {
             @Override
-            public void run() {
+            public Boolean call() throws Exception {
 
+              boolean success = true;
               try {
                 Connection conn1 = TestUtil.getConnection();
                 Statement stmt1 = conn.createStatement();
@@ -1054,20 +1058,27 @@ public class MVCCDUnit extends DistributedSQLTestBase {
                 }
                 GemFireCacheImpl.getInstance().notifyRowScanTestHook();
               }catch(SQLException sqlex) {
+                success= false;
                 sqlex.printStackTrace();
               }catch(Exception ex) {
                 fail(ex.getMessage(),ex);
+                success= false;
                 throw ex;
+
               }
+              return success;
             }
-          });
+          };
 
 
 
-          insertThread.start();
-          Thread scanThread = new Thread(new Runnable() {
+          ExecutorService pool = Executors.newFixedThreadPool(2);
+          Future<Boolean> insertResult = pool.submit(insertTask);
+
+          Callable<Boolean> scanTask = new Callable<Boolean>() {
             @Override
-            public void run() {
+            public Boolean call() throws Exception {
+               boolean success  = true;
               try {
                 Connection conn1 = TestUtil.getConnection();
                 Statement stmt1 = conn.createStatement();
@@ -1080,25 +1091,28 @@ public class MVCCDUnit extends DistributedSQLTestBase {
                 assertEquals(5,cnt);
               }catch(SQLException sqlex) {
                 sqlex.printStackTrace();
+                success=false;
               }catch(InterruptedException iex) {
                 iex.printStackTrace();
+                success=false;
               }
               catch(Exception ex) {
                 fail(ex.getMessage(),ex);
+                success=false;
                 throw ex;
               }
+              return success;
             }
-          });
+          };
 
-          scanThread.start();
+          Future<Boolean> scanResult = pool.submit(scanTask);
+          assertTrue(scanResult.get());
 
-          insertThread.join();
-          scanThread.join();
         } catch (Exception e) {
           e.printStackTrace();
           throw new RuntimeException(e);
         }
-        return GemFireCacheImpl.getInstance().getCacheTransactionManager().getCurrentTXId();
+        return true;
       }
     });
 
