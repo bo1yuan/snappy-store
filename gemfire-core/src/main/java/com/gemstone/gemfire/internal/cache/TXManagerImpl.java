@@ -1222,6 +1222,7 @@ public final class TXManagerImpl implements CacheTransactionManager,
     clearTXState();
     tx.rollback(callbackArg);
     noteRollbackSuccess(opStart, lifeTime, tx, isRemoteRollback);
+    snapshotTxState.set(null);
   }
 
   final void noteRollbackSuccess(final long opStart, final long lifeTime,

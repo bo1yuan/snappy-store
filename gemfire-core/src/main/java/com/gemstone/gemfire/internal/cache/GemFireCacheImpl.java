@@ -192,6 +192,7 @@ import com.gemstone.gemfire.internal.i18n.LocalizedStrings;
 import com.gemstone.gemfire.internal.jndi.JNDIInvoker;
 import com.gemstone.gemfire.internal.jta.TransactionManagerImpl;
 import com.gemstone.gemfire.internal.offheap.MemoryAllocator;
+import com.gemstone.gemfire.internal.offheap.OffHeapStorage;
 import com.gemstone.gemfire.internal.offheap.SimpleMemoryAllocatorImpl.ChunkType;
 import com.gemstone.gemfire.internal.shared.NativeCalls;
 import com.gemstone.gemfire.internal.shared.SystemProperties;
@@ -764,6 +765,7 @@ public class GemFireCacheImpl implements InternalCache, ClientCache, HasCachePer
     }
   }
 
+  private long memorySize;
   /**
    * disables automatic eviction configuration for HDFS regions
    */
@@ -1102,6 +1104,8 @@ public class GemFireCacheImpl implements InternalCache, ClientCache, HasCachePer
         }
       }
 
+      this.memorySize =
+              OffHeapStorage.parseOffHeapMemorySize(getDistributedSystem().getConfig().getMemorySize());
     } // synchronized
   }
 
@@ -6323,5 +6327,9 @@ public class GemFireCacheImpl implements InternalCache, ClientCache, HasCachePer
       }
     }
     return false;
+  }
+
+  public long getMemorySize(){
+    return this.memorySize;
   }
 }
