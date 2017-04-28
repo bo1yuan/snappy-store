@@ -746,62 +746,75 @@ public class BucketRegion extends DistributedRegion implements Bucket {
     // TODO: with forceFlush, ideally we should merge with an existing
     // ColumnBatch if the current size to be flushed is small like < 1000
     // (and split if total size has become too large)
-    boolean doFlush = false;
-    if (forceFlush) {
-      doFlush = getRegionSize() >= getPartitionedRegion()
-          .getColumnMinDeltaRows();
-    }
-    if (!doFlush) {
-      doFlush = checkForColumnBatchCreation();
-    }
-    // we may have to use region.size so that no state
-    // has to be maintained
-    // one more check for size to make sure that concurrent call doesn't succeed.
-    // anyway batchUUID will be null in that case.
-    if (this.batchUUID != null && doFlush && getBucketAdvisor().isPrimary()) {
-      // need to flush the region
-      if (getCache().getLoggerI18n().fineEnabled()) {
-        getCache().getLoggerI18n().fine("createAndInsertColumnBatch: " +
-            "Creating the column batch for bucket " + this.getId()
-            + ", and batchID " + this.batchUUID);
+    boolean success = false;
+    try {
+      boolean doFlush = false;
+      if (forceFlush) {
+        doFlush = getRegionSize() >= getPartitionedRegion()
+                .getColumnMinDeltaRows();
       }
-      getCache().getCacheTransactionManager().begin(IsolationLevel.SNAPSHOT, null);
-      if (getCache().getLoggerI18n().fineEnabled()) {
-        getCache().getLoggerI18n().info(LocalizedStrings.DEBUG, "createAndInsertCachedBatch: " +
-            "The snapshot after creating cached batch is " + getTXState().getLocalTXState().getCurrentSnapshot() +
-            " the current rvv is " + getVersionVector());
+      if (!doFlush) {
+        doFlush = checkForColumnBatchCreation();
       }
-      Set keysToDestroy = null;
+      // we may have to use region.size so that no state
+      // has to be maintained
+      // one more check for size to make sure that concurrent call doesn't succeed.
+      // anyway batchUUID will be null in that case.
+      if (this.batchUUID != null && doFlush && getBucketAdvisor().isPrimary()) {
+        // need to flush the region
+        if (getCache().getLoggerI18n().fineEnabled()) {
+          getCache().getLoggerI18n().fine("createAndInsertColumnBatch: " +
+                  "Creating the column batch for bucket " + this.getId()
+                  + ", and batchID " + this.batchUUID);
+        }
+        getCache().getCacheTransactionManager().begin(IsolationLevel.SNAPSHOT, null);
+        if (getCache().getLoggerI18n().fineEnabled()) {
+          getCache().getLoggerI18n().info(LocalizedStrings.DEBUG, "createAndInsertCachedBatch: " +
+                  "The snapshot after creating cached batch is " + getTXState().getLocalTXState().getCurrentSnapshot() +
+                  " the current rvv is " + getVersionVector());
+        }
 
-      //Check if shutdown hook is set
-      if (null != getCache().getRvvSnapshotTestHook()) {
-        getCache().notifyRvvTestHook();
-        getCache().waitOnRvvSnapshotTestHook();
-      }
-      try {
-        keysToDestroy = createColumnBatchAndPutInColumnTable();
-      } catch (Exception lme) {
-        getCache().getLoggerI18n().warning(lme);
-        // Returning from here as we dont want to clean the row buffer data.
-        return false;
-      }
 
-      destroyAllEntries(keysToDestroy);
-      //Check if shutdown hook is set
-      if (null != getCache().getRvvSnapshotTestHook()) {
-        getCache().notifyRvvTestHook();
-        getCache().waitOnRvvSnapshotTestHook();
+        //Check if shutdown hook is set
+        if (null != getCache().getRvvSnapshotTestHook()) {
+          getCache().notifyRvvTestHook();
+          getCache().waitOnRvvSnapshotTestHook();
+        }
+
+        Set keysToDestroy = createColumnBatchAndPutInColumnTable();
+
+
+        if(getCache().getCacheTransactionManager().testRollBack) {
+          throw new Exception("Test Dummy Exception");
+        }
+        destroyAllEntries(keysToDestroy);
+        //Check if shutdown hook is set
+        if (null != getCache().getRvvSnapshotTestHook()) {
+          getCache().notifyRvvTestHook();
+          getCache().waitOnRvvSnapshotTestHook();
+        }
+        // create new batchUUID
+        generateAndSetBatchIDIfNULL(true);
+
+        if (null != getCache().getRvvSnapshotTestHook()) {
+          getCache().notifyRvvTestHook();
+        }
+        success = true;
+      } else {
+        success = false;
       }
-      // create new batchUUID
-      generateAndSetBatchIDIfNULL(true);
-      getCache().getCacheTransactionManager().commit();
-      if (null != getCache().getRvvSnapshotTestHook()) {
-        getCache().notifyRvvTestHook();
+    }  catch (Exception lme) {
+      getCache().getLoggerI18n().warning(lme);
+      // Returning from here as we dont want to clean the row buffer data.
+     success = false;
+    } finally {
+      if(success) {
+        getCache().getCacheTransactionManager().commit();
+      } else {
+        getCache().getCacheTransactionManager().rollback();
       }
-      return true;
-    } else {
-      return false;
     }
+    return success;
   }
 
   //TODO: Suranjan. it will change for tx operations, setting of batchID will be from commitPhase1

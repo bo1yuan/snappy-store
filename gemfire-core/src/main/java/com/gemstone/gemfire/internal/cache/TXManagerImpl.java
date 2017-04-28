@@ -84,6 +84,7 @@ import javax.transaction.Transaction;
 public final class TXManagerImpl implements CacheTransactionManager,
     OrderedMembershipListener {
 
+  public boolean testRollBack = false;
   // Thread specific context container
   private static final ThreadLocal<TXContext> txContext =
     new ThreadLocal<TXContext>();
