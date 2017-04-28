@@ -773,6 +773,11 @@ public class BucketRegion extends DistributedRegion implements Bucket {
       }
       Set keysToDestroy = null;
 
+      //Check if shutdown hook is set
+      if (null != getCache().getRvvSnapshotTestHook()) {
+        getCache().notifyRvvTestHook();
+        getCache().waitOnRvvSnapshotTestHook();
+      }
       try {
         keysToDestroy = createColumnBatchAndPutInColumnTable();
       } catch (Exception lme) {
@@ -781,15 +786,18 @@ public class BucketRegion extends DistributedRegion implements Bucket {
         return false;
       }
 
+      destroyAllEntries(keysToDestroy);
       //Check if shutdown hook is set
       if (null != getCache().getRvvSnapshotTestHook()) {
         getCache().notifyRvvTestHook();
         getCache().waitOnRvvSnapshotTestHook();
       }
-      destroyAllEntries(keysToDestroy);
       // create new batchUUID
       generateAndSetBatchIDIfNULL(true);
       getCache().getCacheTransactionManager().commit();
+      if (null != getCache().getRvvSnapshotTestHook()) {
+        getCache().notifyRvvTestHook();
+      }
       return true;
     } else {
       return false;

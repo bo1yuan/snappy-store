@@ -423,6 +423,10 @@ public class MemHeapScanController implements MemScanController, RowCountable,
         }
         // We can begin each time as we have to clear below as we don't know when commit will take place.
         region.getCache().getCacheTransactionManager().begin(IsolationLevel.SNAPSHOT, null);
+        if (GemFireCacheImpl.getInstance().getRowScanTestHook() != null) {
+            GemFireCacheImpl.getInstance().notifyScanTestHook();
+            GemFireCacheImpl.getInstance().waitOnRowScanTestHook();
+        }
         this.txState = region.getCache().getCacheTransactionManager().getTXState();
         this.localTXState = this.txState.getTXStateForRead();
         this.snashotTxStarted = true;

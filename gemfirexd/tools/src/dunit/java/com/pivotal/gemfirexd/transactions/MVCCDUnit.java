@@ -35,7 +35,7 @@ import io.snappydata.test.dunit.VM;
 public class MVCCDUnit extends DistributedSQLTestBase {
 
   String regionName = "APP.TABLE1";
-
+  boolean testBatchInsert = false;
   public MVCCDUnit(String name) {
     super(name);
   }
@@ -68,7 +68,15 @@ public class MVCCDUnit extends DistributedSQLTestBase {
           GemFireCacheImpl.getInstance().getCacheTransactionManager().begin(IsolationLevel.SNAPSHOT, null);
           Statement stmt = conn.createStatement();
           for (int i = 0; i < 5; i++) {
-            stmt.execute("insert into " + regionName + " values(" + i + ",'test" + i + "')");
+            String stmtString= "insert into " + regionName + " values(" + i + ",'test" + i + "')";
+            if(testBatchInsert){
+              stmt.addBatch(stmtString);
+            } else {
+              stmt.execute(stmtString);
+            }
+          }
+          if(testBatchInsert) {
+            stmt.executeBatch();
           }
         } catch (Exception e) {
           e.printStackTrace();
@@ -97,8 +105,15 @@ public class MVCCDUnit extends DistributedSQLTestBase {
           conn.setTransactionIsolation(Connection.TRANSACTION_NONE);
           Statement stmt = conn.createStatement();
           for (int i = 5; i < 10; i++) {
-            stmt.execute("insert into " + regionName + " values(" + i + ",'test" + i + "')");
-
+            String stmtString = "insert into " + regionName + " values(" + i + ",'test" + i + "')";
+            if(testBatchInsert) {
+              stmt.addBatch(stmtString);
+            } else {
+              stmt.execute(stmtString);
+            }
+          }
+          if(testBatchInsert) {
+            stmt.executeBatch();
           }
           ResultSet rs = stmt.executeQuery("select * from " + regionName);
 
@@ -141,8 +156,16 @@ public class MVCCDUnit extends DistributedSQLTestBase {
                 Connection conn = TestUtil.getConnection();
                 Statement stmt = conn.createStatement();
                 for (int i = 11; i <= 15; i++) {
-                  stmt.execute("insert into " + regionName + " values(" + i + ",'test" + i + "')");
+                  String stmtString = "insert into " + regionName + " values(" + i + ",'test" + i + "')";
+                  if (testBatchInsert) {
+                    stmt.addBatch(stmtString);
+                  } else {
+                    stmt.execute(stmtString);
+                  }
 
+                }
+                if(testBatchInsert) {
+                  stmt.executeBatch();
                 }
               } catch (SQLException ex) {
                 ex.printStackTrace();
@@ -184,6 +207,10 @@ public class MVCCDUnit extends DistributedSQLTestBase {
     });
   }
 
+  public void testSnapshotBatchInsertAPI() throws Exception {
+    testBatchInsert=true;
+    testSnapshotInsertAPI();
+  }
 
   public void testParallelTransactions() throws Exception {
     startVMs(1, 2);
@@ -940,9 +967,142 @@ public class MVCCDUnit extends DistributedSQLTestBase {
     };
     return callable;
   }
-
-
   public String getSuffix() {
     return "";
+  }
+
+
+
+  class ScanTestHook implements GemFireCacheImpl.RowScanTestHook {
+    Object lockForTest = new Object();
+    Object operationLock = new Object();
+
+
+    public void notifyOperationLock() {
+      synchronized(operationLock){
+        operationLock.notify();
+      }
+    }
+
+    public void notifyTestLock() {
+      synchronized(lockForTest) {
+        lockForTest.notify();
+      }
+    }
+
+    public void waitOnTestLock() {
+      try {
+        synchronized (lockForTest) {
+          lockForTest.wait();
+        }
+      } catch (InterruptedException ex) {
+        ex.printStackTrace();
+      }
+    }
+
+    public void waitOnOperationLock() {
+      try {
+        synchronized (operationLock) {
+          operationLock.wait();
+        }
+      } catch (InterruptedException ex) {
+        ex.printStackTrace();
+      }
+    }
+  }
+
+
+  public void testParallelTransactionsUsingTestHook() throws Exception {
+    startVMs(1, 2);
+    Properties props = new Properties();
+    final Connection conn = TestUtil.getConnection(props);
+    Statement st1 = conn.createStatement();
+
+    clientSQLExecute(1, "create table " + regionName + " (intcol int not null, text varchar" +
+            "(100) not null) replicate persistent enable concurrency checks");
+
+
+    VM server1 = this.serverVMs.get(0);
+    //VM server2 = this.serverVMs.get(1);
+
+
+    final TXId txid = (TXId)server1.invoke(new SerializableCallable() {
+
+      @Override
+      public Object call() {
+        try {
+          ScanTestHook testHook = new ScanTestHook();
+          GemFireCacheImpl.getInstance().setRowScanTestHook(testHook);
+          Connection conn = TestUtil.getConnection();
+          Statement stmt = conn.createStatement();
+          for (int i = 0; i < 5; i++) {
+            stmt.execute("insert into " + regionName + " values(" + i + ",'test" + i + "')");
+          }
+
+
+
+          Thread insertThread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+
+              try {
+                Connection conn1 = TestUtil.getConnection();
+                Statement stmt1 = conn.createStatement();
+                GemFireCacheImpl.getInstance().waitOnScanTestHook();
+                for (int i = 6; i < 11; i++) {
+                  stmt.execute("insert into " + regionName + " values(" + i + ",'test" + i + "')");
+                }
+                GemFireCacheImpl.getInstance().notifyRowScanTestHook();
+              }catch(SQLException sqlex) {
+                sqlex.printStackTrace();
+              }catch(Exception ex) {
+                fail(ex.getMessage(),ex);
+                throw ex;
+              }
+            }
+          });
+
+
+
+          insertThread.start();
+          Thread scanThread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+              try {
+                Connection conn1 = TestUtil.getConnection();
+                Statement stmt1 = conn.createStatement();
+                Thread.sleep(2000);
+                ResultSet rs =  stmt1.executeQuery("select * from " + regionName);
+                int cnt=0;
+                while(rs.next()) {
+                  cnt=cnt+1;
+                }
+                assertEquals(5,cnt);
+              }catch(SQLException sqlex) {
+                sqlex.printStackTrace();
+              }catch(InterruptedException iex) {
+                iex.printStackTrace();
+              }
+              catch(Exception ex) {
+                fail(ex.getMessage(),ex);
+                throw ex;
+              }
+            }
+          });
+
+          scanThread.start();
+
+          insertThread.join();
+          scanThread.join();
+        } catch (Exception e) {
+          e.printStackTrace();
+          throw new RuntimeException(e);
+        }
+        return GemFireCacheImpl.getInstance().getCacheTransactionManager().getCurrentTXId();
+      }
+    });
+
+
+
   }
 }
