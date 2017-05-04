@@ -50,7 +50,6 @@ import com.gemstone.gemfire.internal.cache.FilterRoutingInfo.FilterInfo;
 import com.gemstone.gemfire.internal.cache.delta.Delta;
 import com.gemstone.gemfire.internal.cache.ha.HAContainerWrapper;
 import com.gemstone.gemfire.internal.cache.ha.HARegionQueue;
-import com.gemstone.gemfire.internal.cache.locks.LockingPolicy;
 import com.gemstone.gemfire.internal.cache.locks.NonReentrantReadWriteLock;
 import com.gemstone.gemfire.internal.cache.lru.LRUEntry;
 import com.gemstone.gemfire.internal.cache.tier.sockets.CacheClientNotifier;
@@ -4134,7 +4133,8 @@ RETRY_LOOP:
 
 
   private boolean shouldCopyOldEntry(LocalRegion owner, EntryEventImpl event) {
-    return owner.concurrencyChecksEnabled && !owner.isUsedForMetaRegion() ;
+    return owner.getCache().snapshotEnabled() &&
+        owner.concurrencyChecksEnabled && !owner.isUsedForMetaRegion();
   }
 
   /**
@@ -4364,7 +4364,9 @@ RETRY_LOOP:
         .asVersionTag().getEntryVersion() > 0*/) {
       // we need to do the same for secondary as well.
       oldRe = NonLocalRegionEntry.newEntryWithoutFaultIn(re, event.getRegion(), true);
+
       _getOwner().getCache().addOldEntry(oldRe, _getOwner().getFullPath());
+
     }
     processVersionTag(re, event);
     final int oldSize = _getOwner().calculateRegionEntryValueSize(re);
