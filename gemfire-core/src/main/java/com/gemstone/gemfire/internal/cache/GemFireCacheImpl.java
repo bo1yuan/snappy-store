@@ -284,6 +284,8 @@ public class GemFireCacheImpl implements InternalCache, ClientCache, HasCachePer
    */
   public final boolean DEFAULT_SNAPSHOT_DISABLED = Boolean.getBoolean("gemfire.Cache.DISABLE_DEFAULT_SNAPSHOT_ISOLATION");
 
+  public final boolean DEFAULT_SNAPSHOT_ENABLED_TX = Boolean.getBoolean("gemfire.Cache.DISABLE_DEFAULT_SNAPSHOT_ISOLATION_TX");
+
   /**
    * Property set to true if resource manager heap percentage is set and query monitor is required
    */
@@ -1011,7 +1013,7 @@ public class GemFireCacheImpl implements InternalCache, ClientCache, HasCachePer
         }
       };
 
-      if(snapshotEnabled()) {
+      if (snapshotEnabled()) {
         oldEntryMapCleanerService = Executors.newScheduledThreadPool(1, oldEntryGCtf);
         oldEntryMapCleanerService.scheduleAtFixedRate(new OldEntriesCleanerThread(), 0, OLD_ENTRIES_CLEANER_TIME_INTERVAL,
             TimeUnit.MILLISECONDS);
@@ -1417,6 +1419,9 @@ public class GemFireCacheImpl implements InternalCache, ClientCache, HasCachePer
     return !DEFAULT_SNAPSHOT_DISABLED;
   }
 
+  public boolean snapshotEnabledForTX() {
+    return snapshotEnabled() && DEFAULT_SNAPSHOT_ENABLED_TX;
+  }
 
   // currently it will wait for a long time
   // we can have differnt ds or read write locks to avoid waiting of read operations.

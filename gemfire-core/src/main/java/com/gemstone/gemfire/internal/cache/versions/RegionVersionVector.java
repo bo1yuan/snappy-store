@@ -735,8 +735,8 @@ public abstract class RegionVersionVector<T extends VersionSource<?>> implements
   public void recordVersionForSnapshot(T member, long version, EntryEventImpl event) {
     LogWriterI18n logger = getLoggerI18n();
     T mbr = member;
-
-    if (GemFireCacheImpl.getInstance()!= null && !GemFireCacheImpl.getInstance().snapshotEnabled()) {
+    GemFireCacheImpl cache = GemFireCacheImpl.getInstance();
+    if (cache != null && !cache.snapshotEnabled()) {
       return;
     }
     if (event != null) {
@@ -745,6 +745,9 @@ public abstract class RegionVersionVector<T extends VersionSource<?>> implements
       TXStateInterface tx = event.getTXState();
 
       if (tx != null) {
+        if (!cache.snapshotEnabledForTX()) {
+          return;
+        }
         boolean committed = false;
         if (tx instanceof TXState) {
           committed = ((TXState)tx).isCommitted();

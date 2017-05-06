@@ -409,7 +409,8 @@ public final class TXState implements TXStateInterface {
 
     // We don't know the semantics for RR, so ideally there shouldn't be snapshot for it.
     // Need to disable it.
-    if (getCache().snapshotEnabled() && this.lockPolicy == LockingPolicy.SNAPSHOT) {
+    if (getCache().snapshotEnabled() && ((this.lockPolicy == LockingPolicy.SNAPSHOT) ||
+        ((this.getLockingPolicy() == LockingPolicy.FAIL_FAST_TX) && getCache().snapshotEnabledForTX()))) {
       takeSnapshot();
     } else {
       this.snapshot = null;
@@ -422,7 +423,7 @@ public final class TXState implements TXStateInterface {
   }
 
   //TODO: Suranjan, FOR RC: We should set create snapshot and set it in every stmt.
-  public void takeSnapshot() {
+  public void 2WwqqqqqqtakeSnapshot() {
     this.snapshot = getCache().getSnapshotRVV();
     if (TXStateProxy.LOG_FINE) {
       this.txManager.getLogger().info(LocalizedStrings.DEBUG,
@@ -430,6 +431,10 @@ public final class TXState implements TXStateInterface {
     }
   }
 
+  public boolean snapshotEnabled() {
+    return ((this.lockPolicy == LockingPolicy.SNAPSHOT) ||
+        ((this.getLockingPolicy() == LockingPolicy.FAIL_FAST_TX) && getCache().snapshotEnabledForTX()));
+  }
   /**
    * Special equals implementation for TX lock upgrade to enable using TXState
    * as the owner, that will allow re-entrancy by pretending that null current
@@ -1113,7 +1118,7 @@ public final class TXState implements TXStateInterface {
       }
 
       // No need to check for snapshot if we want to enable it for RC.
-      if(cache.snapshotEnabled() && (isSnapshot() || getLockingPolicy() == LockingPolicy.FAIL_FAST_TX)) {
+      if(cache.snapshotEnabledForTX() && (isSnapshot() || getLockingPolicy() == LockingPolicy.FAIL_FAST_TX)) {
         // TODO: Suranjan MVCC
         // first take a lock at cache level so that we don't go into deadlock or sort array before
         // This is for tx RC, for snapshot just record all the versions from the queue
@@ -3744,7 +3749,7 @@ public final class TXState implements TXStateInterface {
           + checkTX);
     }
     if (checkTX) {
-      final Object key = re.getKeyCopy();
+      final Object key = re.getKey();
       if (dataRegion == null) {
         dataRegion = region.getDataRegionForRead(key, null, bucketId,
             Operation.GET_ENTRY);
@@ -3800,7 +3805,7 @@ public final class TXState implements TXStateInterface {
 
   private boolean shouldGetOldEntry(LocalRegion region) {
     return (region.getCache().snapshotEnabled() &&
-        getLockingPolicy() != LockingPolicy.FAIL_FAST_RR_TX);
+        getLockingPolicy() != LockingPolicy.FAIL_FAST_RR_TX && region.getCache().snapshotEnabledForTX());
   }
 
   // Writer should add old entry with tombstone with region version in the common map
@@ -3834,7 +3839,7 @@ public final class TXState implements TXStateInterface {
               "for key " + key + " re " + re + " for region " + dataRegion.getFullPath());
         }
         try {
-          //TODO: Suranjan Should we wait indefinitely?
+          //TODO: Suranjan Should we wait indefinitely? or throw warning and return the current entry.
           // As
           if (numtimes < 10) {
             Thread.sleep(10);
