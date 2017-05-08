@@ -423,7 +423,7 @@ public final class TXState implements TXStateInterface {
   }
 
   //TODO: Suranjan, FOR RC: We should set create snapshot and set it in every stmt.
-  public void 2WwqqqqqqtakeSnapshot() {
+  public void takeSnapshot() {
     this.snapshot = getCache().getSnapshotRVV();
     if (TXStateProxy.LOG_FINE) {
       this.txManager.getLogger().info(LocalizedStrings.DEBUG,
