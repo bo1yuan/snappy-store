@@ -158,6 +158,7 @@ import com.gemstone.gemfire.internal.cache.control.MemoryThresholdListener;
 import com.gemstone.gemfire.internal.cache.control.ResourceAdvisor;
 import com.gemstone.gemfire.internal.cache.ha.HARegionQueue;
 import com.gemstone.gemfire.internal.cache.locks.ExclusiveSharedSynchronizer;
+import com.gemstone.gemfire.internal.cache.locks.LockingPolicy;
 import com.gemstone.gemfire.internal.cache.lru.HeapEvictor;
 import com.gemstone.gemfire.internal.cache.lru.OffHeapEvictor;
 import com.gemstone.gemfire.internal.cache.partitioned.RedundancyAlreadyMetException;
@@ -1419,8 +1420,10 @@ public class GemFireCacheImpl implements InternalCache, ClientCache, HasCachePer
     return !DEFAULT_SNAPSHOT_DISABLED;
   }
 
+
   public boolean snapshotEnabledForTX() {
-    return snapshotEnabled() && DEFAULT_SNAPSHOT_ENABLED_TX;
+    // snapshot should be enabled and if LockingPolicy is RC/RR then it should not be disabled
+    return snapshotEnabled() &&  DEFAULT_SNAPSHOT_ENABLED_TX;
   }
 
   // currently it will wait for a long time

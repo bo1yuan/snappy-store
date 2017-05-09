@@ -745,7 +745,7 @@ public abstract class RegionVersionVector<T extends VersionSource<?>> implements
       TXStateInterface tx = event.getTXState();
 
       if (tx != null) {
-        if (!cache.snapshotEnabledForTX()) {
+        if (!tx.isSnapshot() && !cache.snapshotEnabledForTX()) {
           return;
         }
         boolean committed = false;

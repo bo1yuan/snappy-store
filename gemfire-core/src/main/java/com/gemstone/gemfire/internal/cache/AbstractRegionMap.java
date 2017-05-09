@@ -2269,7 +2269,7 @@ RETRY_LOOP:
           cbEvent = null;
         }
 
-        if(owner.getCache().snapshotEnabledForTX() ) {
+        if (owner.getCache().snapshotEnabledForTX()) {
           oldRe = NonLocalRegionEntry.newEntryWithoutFaultIn(re, owner, true);
           if (shouldCopyOldEntry(owner, null) /*&& re.getVersionStamp() != null && re.getVersionStamp()
             .asVersionTag().getEntryVersion() > 0*/) {
@@ -2333,7 +2333,7 @@ RETRY_LOOP:
         else {
           cbEvent = null;
         }
-        if(owner.getCache().snapshotEnabledForTX() ) {
+        if (owner.getCache().snapshotEnabledForTX()) {
           oldRe = NonLocalRegionEntry.newEntryWithoutFaultIn(re, owner, true);
           if (shouldCopyOldEntry(owner, null) /*&& re.getVersionStamp()!=null && re.getVersionStamp()
             .asVersionTag().getEntryVersion()>0*/) {
