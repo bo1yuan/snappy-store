@@ -296,7 +296,7 @@ public class utilMain implements java.security.PrivilegedAction {
          		try {
            			ijResult result = ijParser.showConnectionsMethod(true);
  					displayResult(out,result,connEnv[currCE].getConnection(),
- 					    -1 /* GemStoneAddition */);
+ 					    -1 /* GemStoneAddition */, true);
          		} catch (SQLException ex) {
            			handleSQLException(out,ex);
          		}
@@ -438,7 +438,7 @@ public class utilMain implements java.security.PrivilegedAction {
 
 					ijResult result = ijParser.ijStatement();
 					endTime = displayResult(out,result,connEnv[currCE].getConnection(),
-					    beginTime /* GemStoneAddition */);
+					    beginTime /* GemStoneAddition */, true);
 
 					// if something went wrong, an SQLException or ijException was thrown.
 					// we can keep going to the next statement on those (see catches below).
@@ -602,7 +602,7 @@ public class utilMain implements java.security.PrivilegedAction {
   	}
 
 	private long /* GemStone change: void */ displayResult(LocalizedOutput out, ijResult result, Connection conn,
-	    long beginTime /* GemStoneAddition */) throws SQLException {
+	    long beginTime /* GemStoneAddition */, boolean displayCount /* GemStoneAddition */) throws SQLException {
 	  final StopWatch timer = SharedUtils.newTimer(beginTime);
 		// display the result, if appropriate.
 		if (result!=null) {
@@ -632,7 +632,7 @@ public class utilMain implements java.security.PrivilegedAction {
 // GemStone changes BEGIN
 				    JDBCDisplayUtil.DisplayResults(out,
 				        s, connEnv[currCE].getConnection(),
-				        reader, timer);
+				        reader, timer, displayCount);
 				    /* (original code)
 				    JDBCDisplayUtil.DisplayResults(out,s,connEnv[currCE].getConnection());
 				    */
@@ -765,8 +765,15 @@ public class utilMain implements java.security.PrivilegedAction {
                         else {
                           redirected = null;
                         }
+// GemStone changes BEGIN
+      boolean displayCount = false;
+      if (command.startsWith("insert") || command.startsWith("update")
+        || command.startsWith("delete")) {
+        displayCount = true;
+      }
+// GemStone changes END
 			endTime = displayResult(redirected == null ? out : redirected,result,connEnv[currCE]
-			    .getConnection(), beginTime /* GemStoneAddition */);
+			    .getConnection(), beginTime /* GemStoneAddition */, displayCount /* GemStoneAddition */);
 
 			/* Print the elapsed time if appropriate */
 			if (elapsedTimeOn) {
