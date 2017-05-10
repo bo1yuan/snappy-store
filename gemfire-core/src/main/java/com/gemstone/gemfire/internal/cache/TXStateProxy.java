@@ -1552,7 +1552,7 @@ public class TXStateProxy extends NonReentrantReadWriteLock implements
             .currentTXContext();
         public final boolean execute(Object key, Object val) {
           final InternalDistributedMember m = (InternalDistributedMember)key;
-          batchResponses.add(TXBatchMessage.send(dm, m, TXStateProxy.this,
+          batchResponses.add(sendTXBatchMessage(dm, m, TXStateProxy.this,
               this.context, (ArrayList<Object>)val,
               (ArrayList<LocalRegion>)pendingOpsRegionsMap.get(m),
               postMessages, conflictWithEX));
@@ -1573,6 +1573,24 @@ public class TXStateProxy extends NonReentrantReadWriteLock implements
       return batchResponses;
     }
     return null;
+  }
+
+  protected TXBatchResponse sendTXBatchMessage(final DM dm,
+      final InternalDistributedMember recipient,
+      final TXStateInterface tx,
+      final TXManagerImpl.TXContext context,
+      final ArrayList<Object> pendingOps,
+      final ArrayList<LocalRegion> pendingOpsRegions,
+      final List<AbstractOperationMessage> postMessages,
+      final boolean conflictWithEX) {
+    return TXBatchMessage.send(dm,
+        recipient,
+        tx,
+        context,
+        pendingOps,
+        pendingOpsRegions,
+        postMessages,
+        conflictWithEX);
   }
 
   private final void waitForPendingOps(
