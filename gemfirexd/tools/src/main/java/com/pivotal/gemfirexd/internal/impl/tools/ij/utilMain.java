@@ -768,7 +768,7 @@ public class utilMain implements java.security.PrivilegedAction {
 // GemStone changes BEGIN
       boolean displayCount = false;
       if (command.startsWith("insert") || command.startsWith("update")
-        || command.startsWith("delete")) {
+        || command.startsWith("delete") || command.startsWith("put") ) {
         displayCount = true;
       }
 // GemStone changes END
