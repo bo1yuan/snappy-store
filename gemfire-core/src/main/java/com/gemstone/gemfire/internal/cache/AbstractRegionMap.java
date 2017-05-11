@@ -43,7 +43,6 @@ import com.gemstone.gemfire.distributed.internal.DM;
 import com.gemstone.gemfire.distributed.internal.membership.InternalDistributedMember;
 import com.gemstone.gemfire.i18n.LogWriterI18n;
 import com.gemstone.gemfire.internal.Assert;
-import com.gemstone.gemfire.internal.ByteArrayDataInput;
 import com.gemstone.gemfire.internal.HeapDataOutputStream;
 import com.gemstone.gemfire.internal.cache.DiskInitFile.DiskRegionFlag;
 import com.gemstone.gemfire.internal.cache.FilterRoutingInfo.FilterInfo;
@@ -497,7 +496,7 @@ abstract class AbstractRegionMap implements RegionMap {
 
   public final RegionEntry putEntryIfAbsent(Object key, RegionEntry re) {
     RegionEntry value = (RegionEntry)_getMap().putIfAbsent(key, re);
-    if (value == null && (re instanceof OffHeapRegionEntry)
+    if (value == null && re.isOffHeap()
         && _isOwnerALocalRegion() && _getOwner().isThisRegionBeingClosedOrDestroyed()) {
       // prevent orphan during concurrent destroy (#48068)
       if (_getMap().remove(key, re)) {
@@ -999,7 +998,7 @@ abstract class AbstractRegionMap implements RegionMap {
            * throw an exception.
            */
           else {
-            if (newRe instanceof OffHeapRegionEntry) {
+            if (newRe.isOffHeap()) {
               ((OffHeapRegionEntry) newRe).release();
             }
 
@@ -2426,6 +2425,8 @@ RETRY_LOOP:
       }
       } finally {
         //owner.releaseAcquiredWriteLocksOnIndexes(lockedIndexes);
+        if (oldRe != null)
+          oldRe.setUpdateInProgress(false);
       }
     } catch (DiskAccessException dae) {
       owner.handleDiskAccessException(dae, true/* stop bridge servers*/);
@@ -3327,7 +3328,7 @@ RETRY_LOOP:
     retVal = getEntryFactory().createEntry((RegionEntryContext) ownerRegion, key, value);
     RegionEntry oldRe = putEntryIfAbsent(key, retVal);
     if (oldRe != null) {
-      if (retVal instanceof OffHeapRegionEntry) {
+      if (retVal.isOffHeap()) {
         ((OffHeapRegionEntry) retVal).release();
       }
       return oldRe;
@@ -3975,15 +3976,18 @@ RETRY_LOOP:
                   // notify index of an update
                   notifyIndex(re, owner, true);
                   try {
+                    RegionEntry oldRe = null;
                     try {
-                      RegionEntry oldRe = null;
+
                       if (shouldCopyOldEntry(owner, event) && re.getVersionStamp() != null && re
                           .getVersionStamp().asVersionTag().getEntryVersion() > 0) {
                         // we need to do the same for secondary as well.
                         // need to set the version information.
                         oldRe = NonLocalRegionEntry.newEntryWithoutFaultIn(re, event.getRegion(), true);
+                        oldRe.setUpdateInProgress(true);
                         // need to put old entry in oldEntryMap for MVCC
                         owner.getCache().addOldEntry(oldRe, owner.getFullPath());
+
                       }
                       if ((cacheWrite && event.getOperation().isUpdate()) // if there is a cacheWriter, type of event has already been set
                           || !re.isRemoved()
@@ -4005,6 +4009,10 @@ RETRY_LOOP:
                         owner.notifyTimestampsToGateways(event);
                       }
                       throw ccme;
+                    } finally {
+                      if (oldRe != null) {
+                        oldRe.setUpdateInProgress(false);
+                      }
                     }
                     if (uninitialized) {
                       event.inhibitCacheListenerNotification(true);
@@ -4362,24 +4370,31 @@ RETRY_LOOP:
       boolean createdForDestroy, boolean removeRecoveredEntry)
       throws CacheWriterException, TimeoutException, EntryNotFoundException,
       RegionClearedException {
+
     RegionEntry oldRe = null;
-    if (shouldCopyOldEntry(_getOwner(), event) /*&& re.getVersionStamp() != null && re.getVersionStamp()
+    boolean retVal = false;
+    try {
+      if (shouldCopyOldEntry(_getOwner(), event) /*&& re.getVersionStamp() != null && re.getVersionStamp()
         .asVersionTag().getEntryVersion() > 0*/) {
-      // we need to do the same for secondary as well.
-      oldRe = NonLocalRegionEntry.newEntryWithoutFaultIn(re, event.getRegion(), true);
+        // we need to do the same for secondary as well.
+        oldRe = NonLocalRegionEntry.newEntryWithoutFaultIn(re, event.getRegion(), true);
+        oldRe.setUpdateInProgress(true);
+        _getOwner().getCache().addOldEntry(oldRe, _getOwner().getFullPath());
+      }
+      processVersionTag(re, event);
+      final int oldSize = _getOwner().calculateRegionEntryValueSize(re);
 
-      _getOwner().getCache().addOldEntry(oldRe, _getOwner().getFullPath());
+      retVal = re.destroy(event.getLocalRegion(), event, inTokenMode,
+              cacheWrite, expectedOldValue, createdForDestroy, removeRecoveredEntry);
+      // we can add the old value to
+      if (retVal) {
+        EntryLogger.logDestroy(event);
+        _getOwner().updateSizeOnRemove(event.getKey(), oldSize);
+      }
 
-    }
-    processVersionTag(re, event);
-    final int oldSize = _getOwner().calculateRegionEntryValueSize(re);
-
-    boolean retVal = re.destroy(event.getLocalRegion(), event, inTokenMode,
-        cacheWrite, expectedOldValue, createdForDestroy, removeRecoveredEntry);
-    // we can add the old value to
-    if (retVal) {
-      EntryLogger.logDestroy(event);
-      _getOwner().updateSizeOnRemove(event.getKey(), oldSize);
+    } finally {
+      if (oldRe != null)
+        oldRe.setUpdateInProgress(false);
     }
     return retVal;
   }
@@ -4554,6 +4569,9 @@ RETRY_LOOP:
       } catch (RegionClearedException rce) {
         clearOccured = true;
         isCreate = putOp.isCreate();
+      } finally {
+        if (oldRe != null)
+          oldRe.setUpdateInProgress(false);
       }
       if (EntryLogger.isEnabled()) {
         EntryLogger.logTXPut(_getOwnerObject(), key, nv);
@@ -4666,11 +4684,10 @@ RETRY_LOOP:
   private boolean checkIfEqualValue(LocalRegion region, RegionEntry re, InitialImageOperation.Entry tmplEntry,
       Object tmpValue) {
     final DM dm = region.getDistributionManager();
-    final ByteArrayDataInput in = new ByteArrayDataInput();
     final HeapDataOutputStream out = new HeapDataOutputStream(
         Version.CURRENT);
 
-    if (re.fillInValue(region, tmplEntry, in, dm, null)) {
+    if (re.fillInValue(region, tmplEntry, dm, null)) {
       try {
         if (tmplEntry.value != null) {
           final byte[] valueInCache;
