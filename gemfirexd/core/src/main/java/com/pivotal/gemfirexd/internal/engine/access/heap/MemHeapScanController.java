@@ -412,6 +412,7 @@ public class MemHeapScanController implements MemScanController, RowCountable,
       boolean forReadOnly = (this.openMode & GfxdConstants
           .SCAN_OPENMODE_FOR_READONLY_LOCK) != 0;
       if (region.getConcurrencyChecksEnabled() &&
+          region.getCache().snaphshotEnabled() &&
           (region.getCache().getCacheTransactionManager().getTXState() == null)
           && (this.forUpdate == 0)
           && !forReadOnly) {
@@ -423,9 +424,9 @@ public class MemHeapScanController implements MemScanController, RowCountable,
         }
         // We can begin each time as we have to clear below as we don't know when commit will take place.
         region.getCache().getCacheTransactionManager().begin(IsolationLevel.SNAPSHOT, null);
-        if (GemFireCacheImpl.getInstance().getRowScanTestHook() != null) {
-            GemFireCacheImpl.getInstance().notifyScanTestHook();
-            GemFireCacheImpl.getInstance().waitOnRowScanTestHook();
+        if (region.getCache().getRowScanTestHook() != null) {
+          region.getCache().notifyScanTestHook();
+          region.getCache().waitOnRowScanTestHook();
         }
         this.txState = region.getCache().getCacheTransactionManager().getTXState();
         this.localTXState = this.txState.getTXStateForRead();
