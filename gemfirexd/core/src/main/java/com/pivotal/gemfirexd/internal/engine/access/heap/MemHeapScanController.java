@@ -412,7 +412,7 @@ public class MemHeapScanController implements MemScanController, RowCountable,
       boolean forReadOnly = (this.openMode & GfxdConstants
           .SCAN_OPENMODE_FOR_READONLY_LOCK) != 0;
       if (region.getConcurrencyChecksEnabled() &&
-          region.getCache().snaphshotEnabled() &&
+          region.getCache().snapshotEnabled() &&
           (region.getCache().getCacheTransactionManager().getTXState() == null)
           && (this.forUpdate == 0)
           && !forReadOnly) {
