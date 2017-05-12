@@ -280,6 +280,11 @@ public class TXStateProxy extends NonReentrantReadWriteLock implements
   // end flags for performOp()
 
   /**
+   * Same value as EmbedConnection.UNINITIALIZED
+   */
+  public static final long ConnectionUNINITIALIZED = -1;
+
+  /**
    * Retry duration while waiting for local TXState commit to finish when
    * subsequent operation from same coordinator is received.
    */
@@ -1590,7 +1595,8 @@ public class TXStateProxy extends NonReentrantReadWriteLock implements
         pendingOps,
         pendingOpsRegions,
         postMessages,
-        conflictWithEX);
+        conflictWithEX,
+        ConnectionUNINITIALIZED);
   }
 
   private final void waitForPendingOps(
