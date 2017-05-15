@@ -800,8 +800,10 @@ public class BucketRegion extends DistributedRegion implements Bucket {
           getCache().notifyRvvTestHook();
         }
         success = true;
-      } catch (Exception lme) {
+      } catch (LowMemoryException lme) {
         getCache().getLoggerI18n().warning(lme);
+        // While internal cachedBatch creation fails, we dont want to
+        // throw the error to users.
         // Returning from here as we dont want to clean the row buffer data.
         success = false;
       } finally {
