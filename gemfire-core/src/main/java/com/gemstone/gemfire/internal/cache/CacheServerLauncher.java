@@ -762,6 +762,22 @@ public class CacheServerLauncher  {
     setRunningStatus(stat, system);
   }
 
+  /**
+   * Sets the status of the cache server to be {@link #RUNNING}.
+   * This differs from {@link #running(InternalDistributedSystem)} in that
+   * status will be changed to running even if current status is {@link #WAITING}
+   */
+  public void runningForced(final InternalDistributedSystem system) {
+    Status stat = this.status;
+    if (stat == null) {
+      stat = this.status = createStatus(this.baseName, RUNNING, getProcessId());
+    } else {
+      stat.dsMsg = null;
+      stat.state = RUNNING;
+    }
+    setRunningStatus(stat, system);
+  }
+
   protected void setRunningStatus(final Status stat,
       final InternalDistributedSystem system) {
     try {
