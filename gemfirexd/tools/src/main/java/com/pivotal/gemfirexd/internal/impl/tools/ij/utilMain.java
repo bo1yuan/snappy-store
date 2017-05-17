@@ -42,6 +42,7 @@ package com.pivotal.gemfirexd.internal.impl.tools.ij;
                 
 
 import com.gemstone.gemfire.internal.GemFireVersion;
+import com.gemstone.gemfire.internal.shared.ClientSharedUtils;
 import com.pivotal.gemfirexd.internal.iapi.services.info.ProductGenusNames;
 import com.pivotal.gemfirexd.internal.iapi.tools.i18n.*;
 import com.pivotal.gemfirexd.internal.shared.common.SharedUtils;
@@ -740,8 +741,9 @@ public class utilMain implements java.security.PrivilegedAction {
 	    try {
 				int repeatCommand = numTimesToRun;
 				boolean reportRunNum = false;
-				final String c = command.trim().toLowerCase();
-				if (c.startsWith("set") || c.startsWith("elapsed")) {
+				String firstToken = ClientSharedUtils.getStatementToken(command, 0);
+				// final String c = command.trim().toLowerCase();
+				if (firstToken.startsWith("set") || firstToken.startsWith("elapsed")) {
 					repeatCommand = 1;
 				} else if (repeatCommand > 1) {
 					reportRunNum = true;
@@ -767,13 +769,14 @@ public class utilMain implements java.security.PrivilegedAction {
                         }
 // GemStone changes BEGIN
       boolean displayCount = false;
-      if (command.startsWith("insert") || command.startsWith("update")
-        || command.startsWith("delete") || command.startsWith("put") ) {
+      if (firstToken.startsWith("insert") || firstToken.startsWith("update")
+        || firstToken.startsWith("delete") || firstToken.startsWith("put") ) {
         displayCount = true;
       }
 // GemStone changes END
-			endTime = displayResult(redirected == null ? out : redirected,result,connEnv[currCE]
-			    .getConnection(), beginTime /* GemStoneAddition */, displayCount /* GemStoneAddition */);
+			endTime = displayResult(redirected == null ? out :
+			  redirected,result,connEnv[currCE].getConnection(),
+			  beginTime /* GemStoneAddition */, displayCount /* GemStoneAddition */);
 
 			/* Print the elapsed time if appropriate */
 			if (elapsedTimeOn) {
