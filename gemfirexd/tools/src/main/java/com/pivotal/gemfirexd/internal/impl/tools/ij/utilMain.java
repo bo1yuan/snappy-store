@@ -743,7 +743,7 @@ public class utilMain implements java.security.PrivilegedAction {
 				boolean reportRunNum = false;
 				String firstToken = ClientSharedUtils.getStatementToken(command, 0);
 				// final String c = command.trim().toLowerCase();
-				if (firstToken.startsWith("set") || firstToken.startsWith("elapsed")) {
+				if (firstToken.equalsIgnoreCase("set") || firstToken.equalsIgnoreCase("elapsed")) {
 					repeatCommand = 1;
 				} else if (repeatCommand > 1) {
 					reportRunNum = true;
