@@ -769,8 +769,8 @@ public class utilMain implements java.security.PrivilegedAction {
                         }
 // GemStone changes BEGIN
       boolean displayCount = false;
-      if (firstToken.startsWith("insert") || firstToken.startsWith("update")
-        || firstToken.startsWith("delete") || firstToken.startsWith("put") ) {
+      if (firstToken.equalsIgnoreCase("insert") || firstToken.equalsIgnoreCase("update")
+        || firstToken.equalsIgnoreCase("delete") || firstToken.equalsIgnoreCase("put") ) {
         displayCount = true;
       }
 // GemStone changes END
