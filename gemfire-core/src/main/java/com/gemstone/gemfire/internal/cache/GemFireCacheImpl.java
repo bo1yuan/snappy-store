@@ -198,6 +198,7 @@ import com.gemstone.gemfire.internal.shared.NativeCalls;
 import com.gemstone.gemfire.internal.shared.SystemProperties;
 import com.gemstone.gemfire.internal.shared.Version;
 import com.gemstone.gemfire.internal.snappy.CallbackFactoryProvider;
+import com.gemstone.gemfire.internal.snappy.UMMMemoryTracker;
 import com.gemstone.gemfire.internal.tcp.ConnectionTable;
 import com.gemstone.gemfire.internal.util.ArrayUtils;
 import com.gemstone.gemfire.internal.util.concurrent.FutureResult;
@@ -594,7 +595,17 @@ public class GemFireCacheImpl implements InternalCache, ClientCache, HasCachePer
   }
 
   // For each entry this should be in sync
-  public void addOldEntry(RegionEntry oldRe, String regionPath) {
+  public void addOldEntry(RegionEntry oldRe, LocalRegion region, int oldSize) {
+
+    final String regionPath = region.getFullPath();
+
+    // ask for pool memory befor continuing
+    if (!region.reservedTable() && region.needAccounting()) {
+      region.calculateEntryOverhead(oldRe);
+      LocalRegion.regionPath.set(region.getFullPath());
+      region.acquirePoolMemory(oldSize, 0, false, null, true);
+    }
+
     if(getLoggerI18n().fineEnabled()) {
       getLoggerI18n().info(LocalizedStrings.DEBUG, "For region  " + regionPath + " adding " +
           oldRe + " to oldEntrMap");
@@ -719,7 +730,7 @@ public class GemFireCacheImpl implements InternalCache, ClientCache, HasCachePer
         if (!oldEntryMap.isEmpty()) {
           for (Entry<String,Map<Object, BlockingQueue<RegionEntry>>> entry : oldEntryMap.entrySet()) {
             Map<Object, BlockingQueue<RegionEntry>> regionEntryMap = entry.getValue();
-            Region region = getRegion(entry.getKey());
+            LocalRegion region = (LocalRegion)getRegion(entry.getKey());
             for (BlockingQueue<RegionEntry> oldEntriesQueue : regionEntryMap.values()) {
               for (RegionEntry re : oldEntriesQueue) {
                 boolean entryFoundInTxState = false;
@@ -731,7 +742,6 @@ public class GemFireCacheImpl implements InternalCache, ClientCache, HasCachePer
                     break;
                   }
                 }
-                long now = System.currentTimeMillis();
                 if (!entryFoundInTxState) {
                   if (getLoggerI18n().fineEnabled()) {
                     getLoggerI18n().info(LocalizedStrings.DEBUG,
@@ -739,6 +749,11 @@ public class GemFireCacheImpl implements InternalCache, ClientCache, HasCachePer
                             ((NonLocalRegionEntry)re).isUpdateInProgress());
                   }
                   oldEntriesQueue.remove(re);
+                  // free the allocated memory
+                  if (!region.reservedTable() && region.needAccounting()) {
+                    int size = region.calculateRegionEntryValueSize(re);
+                    region.freePoolMemory(size, false);
+                  }
                 }
               }
             }
